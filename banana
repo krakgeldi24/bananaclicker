@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<title>Banana Clicker 🍌</title>
+<style>
+    body {
+        font-family: 'Segoe UI', Arial, sans-serif;
+        background: linear-gradient(#1a3c0f, #0f2a0a);
+        color: #ffeb3b;
+        text-align: center;
+        margin: 0;
+        padding: 20px;
+    }
+    h1 { margin: 10px; text-shadow: 0 0 10px #ffeb3b; }
+    #banana {
+        width: 220px;
+        height: 220px;
+        background: radial-gradient(circle at 40% 30%, #ffeb3b, #f9c74f, #d4a017);
+        border-radius: 50%;
+        margin: 20px auto;
+        cursor: pointer;
+        box-shadow: 0 10px 30px rgba(255, 235, 59, 0.6);
+        transition: transform 0.1s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 100px;
+        user-select: none;
+    }
+    #banana:active { transform: scale(0.85); }
+
+    .container {
+        display: flex;
+        max-width: 1200px;
+        margin: 0 auto;
+        gap: 20px;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+    .left { flex: 1; min-width: 300px; }
+    .right { flex: 2; min-width: 400px; }
+
+    .shop {
+        background: rgba(0,0,0,0.4);
+        border: 2px solid #ffeb3b;
+        border-radius: 12px;
+        padding: 15px;
+        margin-bottom: 20px;
+    }
+    .item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: rgba(255,255,255,0.1);
+        margin: 8px 0;
+        padding: 12px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .item:hover { background: rgba(255, 235, 59, 0.2); transform: translateX(5px); }
+    .item.locked { opacity: 0.5; cursor: not-allowed; }
+
+    button {
+        background: #ffeb3b;
+        color: #1a3c0f;
+        border: none;
+        padding: 10px 16px;
+        margin: 5px;
+        border-radius: 6px;
+        font-weight: bold;
+        cursor: pointer;
+    }
+    button:hover { background: #fff176; }
+
+    .stats {
+        background: rgba(0,0,0,0.5);
+        padding: 15px;
+        border-radius: 12px;
+        margin-bottom: 15px;
+    }
+    .floating {
+        position: absolute;
+        color: #ffeb3b;
+        font-weight: bold;
+        pointer-events: none;
+        animation: floatUp 1.5s forwards;
+        text-shadow: 2px 2px 4px #000;
+    }
+    @keyframes floatUp {
+        0% { opacity: 1; transform: translateY(0); }
+        100% { opacity: 0; transform: translateY(-100px); }
+    }
+</style>
+</head>
+<body>
+
+<h1>🍌 Banana Clicker 🍌</h1>
+<div class="stats">
+    <h2 id="bananas">0 Banana</h2>
+    <p id="bps">0 Banana/s</p>
+</div>
+
+<div id="banana">🍌</div>
+
+<div class="container">
+    <div class="left">
+        <div class="shop">
+            <h3>🛒 Dükkan (Binalar)</h3>
+            <div id="shop"></div>
+        </div>
+
+        <div class="shop">
+            <h3>⭐ Yükseltmeler</h3>
+            <div id="upgrades"></div>
+        </div>
+    </div>
+
+    <div class="right">
+        <button onclick="prestige()">Prestige Yap (Tüm Banana sıfırlanır ama güçlenir)</button>
+        <p id="prestigeInfo">Prestige Seviyesi: <span id="prestigeLevel">0</span></p>
+        
+        <div style="margin-top:30px;">
+            <button onclick="saveGame()">Kaydet</button>
+            <button onclick="loadGame()">Yükle</button>
+            <button onclick="resetGame()">Sıfırla</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ====================== OYUN DEĞİŞKENLERİ ======================
+let bananas = 0;
+let totalBananas = 0;
+let prestige = 0;
+let clickPower = 1;
+
+let buildings = [
+    { id: "monkey", name: "🐒 Maymun", cost: 15, production: 0.5, owned: 0 },
+    { id: "farm", name: "🌴 Muz Çiftliği", cost: 80, production: 4, owned: 0 },
+    { id: "plant", name: "🌱 Muz Plantasyonu", cost: 450, production: 20, owned: 0 },
+    { id: "factory", name: "🏭 Muz Fabrikası", cost: 2200, production: 90, owned: 0 },
+    { id: "kingdom", name: "👑 Maymun Krallığı", cost: 12000, production: 450, owned: 0 },
+    { id: "temple", name: "⛩️ Muz Tapınağı", cost: 65000, production: 2200, owned: 0 }
+];
+
+let upgrades = [
+    { id: "click1", name: "Daha Sert Tıklama", cost: 200, effect: () => clickPower += 2, bought: false, desc: "Tıklama gücü +2" },
+    { id: "monkey1", name: "Maymun Eğitimi", cost: 500, effect: () => buildings[0].production *= 1.5, bought: false, desc: "Maymunlar %50 daha verimli" },
+    { id: "farm1", name: "Gelişmiş Sulama", cost: 2500, effect: () => buildings[1].production *= 2, bought: false, desc: "Çiftlikler 2x verimli" },
+    { id: "global", name: "Muz Manyaklığı", cost: 15000, effect: () => { buildings.forEach(b => b.production *= 1.3); }, bought: false, desc: "Tüm binalar %30 daha güçlü" }
+];
+
+// ====================== KAYDET / YÜKLE ======================
+function saveGame() {
+    const saveData = { bananas, totalBananas, prestige, clickPower, buildings, upgrades };
+    localStorage.setItem("bananaClickerSave", JSON.stringify(saveData));
+    alert("Oyun kaydedildi! 🍌");
+}
+
+function loadGame() {
+    const saved = localStorage.getItem("bananaClickerSave");
+    if (!saved) return alert("Kayıt bulunamadı!");
+    
+    const data = JSON.parse(saved);
+    bananas = data.bananas || 0;
+    totalBananas = data.totalBananas || 0;
+    prestige = data.prestige || 0;
+    clickPower = data.clickPower || 1;
+    buildings = data.buildings || buildings;
+    upgrades = data.upgrades || upgrades;
+    
+    updateDisplay();
+    renderShop();
+    renderUpgrades();
+    alert("Oyun yüklendi!");
+}
+
+function resetGame() {
+    if (confirm("Tüm ilerlemeni silmek istediğine emin misin?")) {
+        localStorage.removeItem("bananaClickerSave");
+        location.reload();
+    }
+}
+
+// ====================== PRESTIGE ======================
+function prestige() {
+    if (totalBananas < 1000) return alert("Prestige için en az 1000 banana toplamış olmalısın!");
+    
+    if (!confirm("Prestige yaparak her şeyi sıfırlayacaksın ama her prestige seviyesi tıklama gücünü ve üretimini artırır. Devam?")) return;
+    
+    prestige++;
+    const multiplier = 1 + prestige * 0.2;
+    
+    bananas = 0;
+    totalBananas = 0;
+    clickPower = 1 + prestige * 3;
+    
+    buildings.forEach(b => {
+        b.owned = 0;
+        b.cost = Math.ceil(b.cost * 0.6); // biraz ucuzlat
+    });
+    
+    upgrades.forEach(u => u.bought = false);
+    
+    updateDisplay();
+    renderShop();
+    renderUpgrades();
+    alert(`Prestige ${prestige} seviyesine yükseldin! Güç çarpanı: x${multiplier.toFixed(1)}`);
+}
+
+// ====================== ANA FONKSİYONLAR ======================
+const bananaEl = document.getElementById("banana");
+
+bananaEl.addEventListener("click", (e) => {
+    bananas += clickPower;
+    totalBananas += clickPower;
+    
+    // Floating text
+    const float = document.createElement("div");
+    float.className = "floating";
+    float.textContent = `+${clickPower}`;
+    float.style.left = (e.clientX + 10) + "px";
+    float.style.top = (e.clientY - 20) + "px";
+    document.body.appendChild(float);
+    
+    setTimeout(() => float.remove(), 1500);
+    
+    updateDisplay();
+});
+
+function calculateBPS() {
+    let bps = 0;
+    buildings.forEach(building => {
+        bps += building.owned * building.production;
+    });
+    return bps * (1 + prestige * 0.2);
+}
+
+function updateDisplay() {
+    document.getElementById("bananas").textContent = 
+        Math.floor(bananas).toLocaleString() + " Banana";
+    
+    document.getElementById("bps").textContent = 
+        calculateBPS().toFixed(1) + " Banana/s";
+    
+    document.getElementById("prestigeLevel").textContent = prestige;
+}
+
+function buyBuilding(index) {
+    const b = buildings[index];
+    const cost = Math.ceil(b.cost * Math.pow(1.15, b.owned));
+    
+    if (bananas >= cost) {
+        bananas -= cost;
+        b.owned++;
+        b.cost = cost; // sonraki maliyet
+        updateDisplay();
+        renderShop();
+    }
+}
+
+function buyUpgrade(index) {
+    const u = upgrades[index];
+    if (u.bought || bananas < u.cost) return;
+    
+    bananas -= u.cost;
+    u.effect();
+    u.bought = true;
+    
+    renderUpgrades();
+    updateDisplay();
+}
+
+function renderShop() {
+    const shop = document.getElementById("shop");
+    shop.innerHTML = "";
+    
+    buildings.forEach((b, i) => {
+        const cost = Math.ceil(b.cost * Math.pow(1.15, b.owned));
+        const div = document.createElement("div");
+        div.className = "item";
+        div.innerHTML = `
+            <div>
+                <strong>${b.name}</strong><br>
+                <small>${b.owned} adet • ${b.production.toFixed(1)}/s</small>
+            </div>
+            <div style="text-align:right;">
+                <strong>${cost}</strong> 🍌
+            </div>
+        `;
+        div.onclick = () => buyBuilding(i);
+        shop.appendChild(div);
+    });
+}
+
+function renderUpgrades() {
+    const upgDiv = document.getElementById("upgrades");
+    upgDiv.innerHTML = "";
+    
+    upgrades.forEach((u, i) => {
+        if (u.bought) return;
+        
+        const div = document.createElement("div");
+        div.className = "item";
+        div.innerHTML = `
+            <div>
+                <strong>${u.name}</strong><br>
+                <small>${u.desc}</small>
+            </div>
+            <div><strong>${u.cost}</strong> 🍌</div>
+        `;
+        div.onclick = () => buyUpgrade(i);
+        upgDiv.appendChild(div);
+    });
+}
+
+// ====================== OYUN DÖNGÜSÜ ======================
+setInterval(() => {
+    const bps = calculateBPS();
+    bananas += bps / 10;        // her 100ms'de 1/10 üretim
+    totalBananas += bps / 10;
+    updateDisplay();
+}, 100);
+
+// İlk render
+renderShop();
+renderUpgrades();
+updateDisplay();
+
+// Her 5 saniyede bir otomatik kaydet
+setInterval(saveGame, 5000);
+
+alert("Hoş geldin! 🍌 Büyük muzu tıkla ve imparatorluğunu kur!");
+</script>
+
+</body>
+</html>
